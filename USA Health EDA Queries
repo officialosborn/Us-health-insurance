@@ -1,0 +1,149 @@
+
+use us_health_insurance_dataset;
+SELECT * FROM us_health_insurance_dataset.insurance;
+
+select count(*)
+from insurance;
+		-- check for duplicates
+select *,
+row_number() over(partition by Age, Gender, Body_mass_index, Children, Smoker, Location, Insurance_cost) as row_num
+from insurance;
+
+with insurance_duplicates as
+(
+select *,
+row_number() over(partition by Age, Gender, Body_mass_index, Children, Smoker, Location, Insurance_cost) as row_num
+from insurance
+)
+select *
+from insurance_duplicates;
+
+CREATE TABLE `insurance_staging` (
+`First_name` varchar(50),
+`Last_name` varchar(50),
+`Age` int DEFAULT NULL,
+`Gender` text,
+`Body_mass_index` double DEFAULT NULL,
+`Children` int DEFAULT NULL,
+`Smoker` text,
+`Location` text,
+`Insurance_cost` double DEFAULT NULL,
+`row_num` int) 
+ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+select count(*)
+from insurance_staging;
+insert into insurance_staging
+select *,
+row_number() over(partition by Age, Gender, Body_mass_index, Children, Smoker, Location, Insurance_cost) as row_num
+from insurance;
+
+select location, trim(location)
+from insurance_staging;
+
+update insurance_staging
+set location = trim(location);
+
+select *
+from insurance_staging
+where row_num > 1;
+
+delete
+from insurance_staging
+where row_num > 1;
+
+select count(*)
+from insurance_staging;
+
+alter table insurance_staging
+drop column row_num;
+
+select *
+from insurance_staging;
+
+	## Demographics
+	-- What is the average age of people in the dataset?
+select gender, avg(age)
+from insurance_staging
+group by gender;
+
+	-- How many males and females are there?
+select gender, count(gender)
+from insurance_staging
+group by gender;
+
+	-- How many people are smokers?
+select Smoker, count(smoker)
+from insurance_staging
+where smoker = 'yes';
+
+	-- What percentage of the dataset are non-smokers?
+select smoker, (1063/1337)*100 as percentage
+from insurance_staging
+where smoker = 'no'
+group by smoker;
+
+	-- What is the average insurance cost overall?
+select avg(Insurance_cost),
+(
+select avg(Insurance_cost)
+from insurance_staging
+) as avg_insurance_cost
+from insurance_staging;
+
+
+select *,
+case
+	when age <= 30 then 'Young Adult'
+    when age between 31 and 44 then 'Mid Adult'
+    when age >= 44 then 'Old Adult'
+end as Age_grouping
+from insurance_staging;
+
+CREATE TABLE `Us_health_insurance` (
+  `First_name` varchar(50) DEFAULT NULL,
+  `Last_name` varchar(50) DEFAULT NULL,
+  `Age` int DEFAULT NULL,
+  `Gender` text,
+  `Body_mass_index` double DEFAULT NULL,
+  `Children` int DEFAULT NULL,
+  `Smoker` text,
+  `Location` text,
+  `Insurance_cost` double DEFAULT NULL,
+  `Age_grouping` varchar(50)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+select* from Us_health_insurance;
+insert into Us_health_insurance
+	select *,
+case
+	when age <= 30 then 'Young Adult'
+    when age between 31 and 44 then 'Mid Adult'
+    when age >= 44 then 'Old Adult'
+end as Age_grouping
+from insurance_staging;
+
+select distinct age_grouping, avg(insurance_cost)
+from Us_health_insurance
+group by age_grouping
+;
+
+-- Compiled Queries
+delimiter $$
+create procedure compiled_queries2()
+begin
+		select count(*) as Total_costomers from insurance_staging;
+		select gender, avg(age) from insurance_staging group by gender;
+		select gender, count(gender) as Total_gender from insurance_staging group by gender;
+		select Smoker, count(smoker) as total_smokers from insurance_staging where smoker = 'yes';
+		SELECT smoker, AVG(insurance_cost) AS avg_cost FROM insurance_staging GROUP BY smoker;
+		SELECT gender, AVG(Body_mass_index) AS avg_bmi FROM insurance_staging GROUP BY gender order by 2 desc;
+		select smoker, (1063/1337)*100 as percentage from insurance_staging where smoker = 'no' group by smoker;
+		select avg(Insurance_cost) as avg_cost, (select sum(Insurance_cost) from insurance_staging) as sum_cost from insurance_staging;
+		select location, avg(Insurance_cost) as highest_cost_location from insurance_staging group by location order by 2 desc;
+		select gender, avg(Insurance_cost), max(Insurance_cost) from insurance_staging group by gender order by 1 desc;
+		SELECT MIN(age) AS youngest, MAX(age) AS oldest FROM insurance_staging;
+		SELECT children, COUNT(*) AS num_people, AVG(insurance_cost) AS avg_cost FROM insurance_staging GROUP BY children ORDER BY children;
+		SELECT first_name, last_name, gender, insurance_cost FROM insurance_staging order by Insurance_cost desc LIMIT 5;
+end$$
+DELIMITER ;
